@@ -1,5 +1,6 @@
 package com.example.ai.service.impl;
 
+import com.example.ai.agent.AiAgent;
 import com.example.ai.dto.ChatRequest;
 import com.example.ai.dto.ChatResponse;
 import com.example.ai.dto.StreamChatResponse;
@@ -8,12 +9,10 @@ import com.example.ai.entity.Message;
 import com.example.ai.mapper.ConversationMapper;
 import com.example.ai.mapper.MessageMapper;
 import com.example.ai.service.ChatService;
-import com.example.ai.service.LlmService;
-import com.example.ai.service.StreamHandler;
 import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.memory.ChatMemory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,12 +20,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 /**
  * 聊天服务实现类
+ * 使用 LangChain4j AiServices 自动处理工具调用
  */
 @Slf4j
 @Service
@@ -36,7 +35,8 @@ public class ChatServiceImpl implements ChatService {
     private static final String SYSTEM_PROMPT = "你是企业AI助手，请基于上下文回答问题，不要编造内容，不确定时请说明。";
     private static final int HISTORY_LIMIT = 10;
 
-    private final LlmService llmService;
+    private final AiAgent aiAgent;
+    private final ChatMemory chatMemory;
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
 
@@ -47,16 +47,15 @@ public class ChatServiceImpl implements ChatService {
         String userMessage = request.getMessage();
 
         conversationId = getOrCreateConversation(userId, conversationId, userMessage);
-
         validateConversationOwnership(userId, conversationId);
 
-        List<Message> recentMessages = messageMapper.listRecentMessages(conversationId, HISTORY_LIMIT);
-        Collections.reverse(recentMessages);
+        // 加载历史消息到 ChatMemory
+        loadHistoryToMemory(conversationId);
 
-        List<ChatMessage> chatMessages = buildChatMessages(recentMessages, userMessage);
+        // 使用 AiAgent 进行对话，自动处理工具调用
+        String answer = aiAgent.chat(userMessage);
 
-        String answer = llmService.chat(chatMessages);
-
+        // 保存消息到数据库
         saveUserMessage(conversationId, userMessage);
         Long assistantMessageId = saveAssistantMessage(conversationId, answer);
 
@@ -70,79 +69,94 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public SseEmitter chatStream(String userId, ChatRequest request) {
+        // 流式处理暂时使用同步方式（AiServices 流式需要额外配置）
         Long conversationId = request.getConversationId();
         String userMessage = request.getMessage();
 
         Long finalConversationId = getOrCreateConversation(userId, conversationId, userMessage);
-
         validateConversationOwnership(userId, finalConversationId);
-
-        List<Message> recentMessages = messageMapper.listRecentMessages(finalConversationId, HISTORY_LIMIT);
-        Collections.reverse(recentMessages);
-
-        List<ChatMessage> chatMessages = buildChatMessages(recentMessages, userMessage);
 
         SseEmitter emitter = new SseEmitter(300000L);
 
         saveUserMessage(finalConversationId, userMessage);
 
-        llmService.chatStream(chatMessages, new StreamHandler() {
-            private final StringBuilder fullAnswer = new StringBuilder();
+        // 在后台线程中处理
+        new Thread(() -> {
+            try {
+                // 加载历史消息
+                loadHistoryToMemory(finalConversationId);
 
-            @Override
-            public void onToken(String token) {
-                try {
-                    fullAnswer.append(token);
+                // 使用 AiAgent 进行对话
+                String answer = aiAgent.chat(userMessage);
+
+                // 模拟流式输出（逐字符发送）
+                for (int i = 0; i < answer.length(); i++) {
+                    String token = String.valueOf(answer.charAt(i));
                     StreamChatResponse response = StreamChatResponse.builder()
                             .type("token")
                             .content(token)
                             .conversationId(finalConversationId)
                             .build();
                     emitter.send(response);
-                } catch (IOException e) {
-                    log.error("Error sending SSE token", e);
-                    emitter.completeWithError(e);
+                    Thread.sleep(10); // 模拟打字效果
                 }
-            }
 
-            @Override
-            public void onComplete(String fullResponse) {
+                // 保存助手回复
+                saveAssistantMessage(finalConversationId, answer);
+
+                // 发送完成事件
+                StreamChatResponse completeResponse = StreamChatResponse.builder()
+                        .type("complete")
+                        .content(answer)
+                        .conversationId(finalConversationId)
+                        .build();
+                emitter.send(completeResponse);
+                emitter.complete();
+
+                log.info("Stream chat completed. conversationId={}", finalConversationId);
+
+            } catch (Exception e) {
+                log.error("Error in stream chat", e);
                 try {
-                    saveAssistantMessage(finalConversationId, fullResponse);
-
-                    StreamChatResponse response = StreamChatResponse.builder()
-                            .type("complete")
-                            .content(fullResponse)
-                            .conversationId(finalConversationId)
-                            .build();
-                    emitter.send(response);
-                    emitter.complete();
-
-                    log.info("Stream chat completed. conversationId={}", finalConversationId);
-                } catch (IOException e) {
-                    log.error("Error completing SSE", e);
-                    emitter.completeWithError(e);
-                }
-            }
-
-            @Override
-            public void onError(Throwable error) {
-                log.error("Error in stream chat", error);
-                try {
-                    StreamChatResponse response = StreamChatResponse.builder()
+                    StreamChatResponse errorResponse = StreamChatResponse.builder()
                             .type("error")
-                            .content(error.getMessage())
+                            .content(e.getMessage())
                             .conversationId(finalConversationId)
                             .build();
-                    emitter.send(response);
+                    emitter.send(errorResponse);
                     emitter.complete();
-                } catch (IOException e) {
-                    emitter.completeWithError(e);
+                } catch (IOException ioException) {
+                    emitter.completeWithError(ioException);
                 }
             }
-        });
+        }).start();
 
         return emitter;
+    }
+
+    /**
+     * 加载历史消息到 ChatMemory
+     */
+    private void loadHistoryToMemory(Long conversationId) {
+        // 清空当前记忆
+        chatMemory.clear();
+
+        // 添加系统提示
+        chatMemory.add(new SystemMessage(SYSTEM_PROMPT));
+
+        // 加载历史消息
+        List<Message> recentMessages = messageMapper.listRecentMessages(conversationId, HISTORY_LIMIT);
+        Collections.reverse(recentMessages);
+
+        for (Message msg : recentMessages) {
+            if ("user".equals(msg.getRole())) {
+                chatMemory.add(new UserMessage(msg.getContent()));
+            } else if ("assistant".equals(msg.getRole())) {
+                chatMemory.add(new AiMessage(msg.getContent()));
+            }
+        }
+
+        log.debug("Loaded {} messages to ChatMemory for conversation {}", recentMessages.size(), conversationId);
     }
 
     private Long getOrCreateConversation(String userId, Long conversationId, String userMessage) {
@@ -166,24 +180,6 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
-    private List<ChatMessage> buildChatMessages(List<Message> historyMessages, String currentMessage) {
-        List<ChatMessage> chatMessages = new ArrayList<>();
-
-        chatMessages.add(new SystemMessage(SYSTEM_PROMPT));
-
-        for (Message msg : historyMessages) {
-            if ("user".equals(msg.getRole())) {
-                chatMessages.add(new UserMessage(msg.getContent()));
-            } else if ("assistant".equals(msg.getRole())) {
-                chatMessages.add(new AiMessage(msg.getContent()));
-            }
-        }
-
-        chatMessages.add(new UserMessage(currentMessage));
-
-        return chatMessages;
-    }
-
     private void saveUserMessage(Long conversationId, String content) {
         Message message = new Message();
         message.setConversationId(conversationId);
@@ -202,9 +198,9 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private String generateTitle(String message) {
-        if (message.length() <= 20) {
-            return message;
+        if (message == null || message.isEmpty()) {
+            return "新对话";
         }
-        return message.substring(0, 20) + "...";
+        return message.length() > 20 ? message.substring(0, 20) + "..." : message;
     }
 }
