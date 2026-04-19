@@ -199,3 +199,16 @@ Content-Type: application/json
 ## 许可证
 
 MIT
+
+
+
+## 小记
+
+type	含义	关键字段
+
+reasoning	思维链片段	content
+tool_call	工具调用	toolName + toolArgs
+token	文本片段	content
+complete	生成完成	content
+error	出错	content
+

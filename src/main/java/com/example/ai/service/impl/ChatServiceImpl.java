@@ -81,10 +81,39 @@ public class ChatServiceImpl implements ChatService {
         saveUserMessage(finalConversationId, userMessage);
         loadHistoryToMemory(finalConversationId);
 
-        // 使用 AiAgent 返回的 TokenStream 设置流式回调
         aiAgent.chatStream(userMessage)
+                .onPartialThinking(thinking -> {
+                    try {
+                        emitter.send(StreamChatResponse.builder()
+                                .type("reasoning")
+                                .content(thinking.text())
+                                .conversationId(finalConversationId)
+                                .build());
+                    } catch (IOException e) {
+                        emitter.completeWithError(e);
+                    }
+                })
+                .onPartialToolCall(partialToolCall -> {
+                    try {
+                        String toolName = partialToolCall.name();
+                        String toolArgs = partialToolCall.partialArguments();
+                        emitter.send(StreamChatResponse.builder()
+                                .type("tool_call")
+                                .toolName(toolName)
+                                .toolArgs(toolArgs)
+                                .conversationId(finalConversationId)
+                                .build());
+                        log.debug("Tool calling: {}", toolName);
+                    } catch (IOException e) {
+                        emitter.completeWithError(e);
+                    }
+                })
                 .onPartialResponse(token -> {
                     try {
+                        // 过滤纯空白 token（模型常在工具调用后输出 \n\n）
+                        if (token.isBlank()) {
+                            return;
+                        }
                         full.append(token);
                         emitter.send(StreamChatResponse.builder()
                                 .type("token")

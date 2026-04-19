@@ -1,5 +1,6 @@
 package com.example.ai.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -7,25 +8,28 @@ import lombok.NoArgsConstructor;
 
 /**
  * 流式聊天响应DTO
+ *
+ * type 取值：
+ * - reasoning:  思维链片段（content 为思考内容）
+ * - tool_call:  工具调用（toolName + toolArgs）
+ * - token:      逐 token 输出（content 为文本片段）
+ * - complete:   生成完成（content 为完整回复）
+ * - error:      出错（content 为错误信息）
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class StreamChatResponse {
 
-    /**
-     * 响应类型：token/complete/error
-     */
     private String type;
 
-    /**
-     * 内容（token内容或错误信息）
-     */
     private String content;
 
-    /**
-     * 会话ID
-     */
     private Long conversationId;
+
+    private String toolName;
+
+    private String toolArgs;
 }

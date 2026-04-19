@@ -79,7 +79,8 @@ public class AiAgentConfig {
         OpenAiStreamingChatModel.OpenAiStreamingChatModelBuilder builder = OpenAiStreamingChatModel.builder()
                 .apiKey(apiKey)
                 .modelName(modelName)
-                .httpClientBuilder(httpClientBuilder);
+                .httpClientBuilder(httpClientBuilder)
+                .returnThinking(true);
 
         if (baseUrl != null && !baseUrl.isEmpty()) {
             builder.baseUrl(baseUrl);
