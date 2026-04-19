@@ -1,214 +1,187 @@
-# AI Agent MVP 企业级智能对话系统
+# Agent4j — 企业级 AI 智能体平台
 
-## 项目概述
+**让每个企业拥有自己的 AI 大脑**
 
-基于 Java 17 + Spring Boot 3.x + LangChain4j + MyBatis 的企业级 AI 对话系统 MVP。
+---
 
-## 技术栈
+## 愿景
 
-- **Java**: 17
-- **Spring Boot**: 3.2.0
-- **LangChain4j**: 0.25.0 (LLM调用框架)
-- **MyBatis**: 3.0.3 (ORM框架)
-- **MySQL**: 8.0+
-- **构建工具**: Maven
+Agent4j 是一个基于 Java 生态构建的企业级 AI 智能体平台。它将大语言模型的推理能力与企业的业务系统深度融合，通过工具调用（Tool Use）和模型上下文协议（MCP），让 AI 不只是聊天——而是真正**执行任务、调用系统、驱动业务流程**。
+
+我们相信：**AI 的终极形态不是对话框，而是能自主完成工作的智能体。**
+
+---
+
+## 核心能力
+
+### 智能体引擎
+
+基于 LangChain4j 1.13 构建的 Agent 内核，支持：
+
+- **自主工具调用** — AI 自动判断何时调用工具，无需人工编排流程
+- **多轮上下文记忆** — 基于滑动窗口的对话记忆，精准维持上下文连贯性
+- **思维链可视化** — 支持模型推理过程实时展示（Reasoning），让 AI 的"思考"可追溯
+- **流式输出** — Token 级 SSE 流式响应，首字延迟降至最低，用户体验媲美原生应用
+
+### 工具生态系统
+
+AI 的能力边界取决于它能调用的工具。Agent4j 提供双通道工具集成：
+
+| 能力 | 说明 |
+|------|------|
+| **本地工具** | 通过 `@Tool` 注解，一行 Java 代码即可注册工具，AI 自动识别调用 |
+| **MCP 协议** | 支持 Model Context Protocol，可动态接入远程工具服务器，无限扩展能力边界 |
+
+当前已内置：实时时间查询、数据库操作等基础工具。通过 MCP，可快速接入搜索引擎、知识库、API 网关等外部服务。
+
+### 实时流式通信
+
+设计了完整的 SSE 事件协议，前端可精确感知 AI 的每一步状态：
+
+```
+reasoning  →  AI 正在推理（思维链实时输出）
+tool_call  →  AI 正在调用工具（显示工具名称和参数）
+token      →  正文逐字流式输出
+complete   →  回复完成
+error      →  异常通知
+```
+
+这不是简单的"打字机效果"——这是 AI 工作过程的**全链路可视化**。
+
+---
+
+## 技术架构
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    前端 (Vue 3)                       │
+│         Element Plus + SSE Streaming Client          │
+└──────────────────────┬──────────────────────────────┘
+                       │ HTTP / SSE
+┌──────────────────────▼──────────────────────────────┐
+│              Spring Boot 3.2 (Java 21)                │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────────┐  │
+│  │ Chat API │  │ Conv Mgr │  │   MCP Connector   │  │
+│  └────┬─────┘  └────┬─────┘  └────────┬──────────┘  │
+│       │              │                 │              │
+│  ┌────▼──────────────▼─────────────────▼──────────┐  │
+│  │              Agent Engine (AiServices)           │  │
+│  │     Tool Call · Memory · Streaming · Reasoning  │  │
+│  └────────────────────┬───────────────────────────┘  │
+│                       │                               │
+│  ┌────────────────────▼───────────────────────────┐  │
+│  │         LangChain4j + OpenAI Compatible LLM     │  │
+│  │         (Qwen / GPT / DeepSeek / ...)           │  │
+│  └────────────────────────────────────────────────┘  │
+│                       │                               │
+│  ┌────────────────────▼───────────────────────────┐  │
+│  │              MySQL · MyBatis · Persistent        │  │
+│  └────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────┘
+```
+
+### 技术选型
+
+| 层级 | 技术 | 选型理由 |
+|------|------|----------|
+| 语言 | Java 21 | 企业级稳定性，虚拟线程支持高并发 |
+| 框架 | Spring Boot 3.2 | 成熟生态，开箱即用 |
+| AI 框架 | LangChain4j 1.13 | Java 生态最活跃的 LLM 编排框架 |
+| 协议 | MCP (Model Context Protocol) | 标准化工具接入协议，生态快速增长 |
+| 前端 | Vue 3 + Element Plus | 轻量高效，企业级 UI 组件 |
+| 数据库 | MySQL + MyBatis | 企业标配，运维零门槛 |
+
+---
+
+## 产品亮点
+
+### 1. 零门槛工具扩展
+
+开发者只需编写一个带 `@Tool` 注解的 Java 方法，AI 即可自动识别并调用。无需训练、无需 Prompt 工程、无需编排流程。
+
+### 2. MCP — 工具接入的 USB 接口
+
+Model Context Protocol 是 AI 工具接入的事实标准。Agent4j 原生支持 MCP，可一键接入不断增长的 MCP 工具生态。
+
+### 3. 全链路可观测
+
+从 AI 推理到工具调用到最终回复，每个环节都有明确的事件标识。不是黑盒，是玻璃盒。
+
+### 4. 模型无关
+
+兼容所有 OpenAI API 协议的模型服务商（SiliconFlow、通义千问、DeepSeek、OpenAI 等），可随时切换模型，不被供应商锁定。
+
+---
+
+## 商业场景
+
+| 场景 | 描述 |
+|------|------|
+| **智能客服** | 接入订单系统、知识库工具，AI 自主查询并回答客户问题 |
+| **企业知识助手** | 通过 MCP 连接企业 Wiki / 文档系统，AI 实时检索生成回答 |
+| **数据分析 Copilot** | 注册数据库查询工具，用户用自然语言获取数据报表 |
+| **运维助手** | 接入监控 API 工具，AI 自动诊断故障并执行修复操作 |
+| **代码助手** | 连接代码仓库 MCP，AI 读懂代码上下文辅助开发 |
+
+---
+
+## 快速开始
+
+### 环境要求
+
+- JDK 21+
+- MySQL 8.0+
+- Node.js 20+（前端）
+
+### 后端启动
+
+```bash
+# 1. 初始化数据库
+mysql -u root -p < src/main/resources/schema.sql
+
+# 2. 配置 application.yml（数据库连接、LLM API Key）
+
+# 3. 启动
+mvn spring-boot:run
+```
+
+### 前端启动
+
+```bash
+cd agent4j-front
+npm install
+npm run dev
+```
+
+访问 `http://localhost:5173`，开始对话。
+
+---
 
 ## 项目结构
 
 ```
-com.example.ai
-├── AiAgentApplication.java      # 启动类
-├── config
-│   └── LangChain4jConfig.java   # LangChain4j配置
-├── controller
-│   ├── ChatController.java      # 聊天接口
-│   ├── ConversationController.java  # 会话管理接口
-│   ├── FeedbackController.java  # 反馈接口
-│   └── GlobalExceptionHandler.java  # 全局异常处理
-├── dto                          # 数据传输对象
-├── entity                       # 实体类
-├── mapper                       # MyBatis Mapper接口
-└── service                      # 业务逻辑层
-    └── impl                     # 实现类
+Agent4j/
+├── src/main/java/com/example/ai/
+│   ├── agent/          # AI 智能体定义 + 工具注册
+│   ├── config/         # Spring 配置（Agent、MCP、LangChain4j）
+│   ├── controller/     # REST API（聊天、会话、反馈、MCP 管理）
+│   ├── service/        # 业务逻辑（流式聊天、会话管理）
+│   ├── entity/         # 数据实体
+│   ├── mapper/         # MyBatis 数据访问
+│   └── dto/            # 请求/响应对象
+├── agent4j-front/      # Vue 3 前端
+│   └── src/
+│       ├── api/        # SSE 流式客户端
+│       ├── composables/# 状态管理 + Markdown 渲染
+│       ├── components/ # 对话 UI 组件
+│       └── views/      # 页面视图
+└── src/main/resources/
+    ├── application.yml
+    └── schema.sql
 ```
 
-## 数据库设计
-
-### 表结构
-
-1. **conversation** - 会话表
-   - id: BIGINT (主键)
-   - user_id: VARCHAR(64) (用户ID)
-   - title: VARCHAR(255) (会话标题)
-   - created_at: DATETIME
-
-2. **message** - 消息表
-   - id: BIGINT (主键)
-   - conversation_id: BIGINT (外键)
-   - role: VARCHAR(16) (user/assistant)
-   - content: TEXT
-   - created_at: DATETIME
-
-3. **feedback** - 反馈表
-   - id: BIGINT (主键)
-   - message_id: BIGINT (外键)
-   - type: VARCHAR(16) (like/dislike)
-   - created_at: DATETIME
-
-## 快速开始
-
-### 1. 环境准备
-
-- JDK 17+
-- MySQL 8.0+
-- Maven 3.8+
-
-### 2. 数据库初始化
-
-```bash
-# 登录MySQL
-mysql -u root -p
-
-# 执行初始化脚本
-source src/main/resources/schema.sql
-```
-
-### 3. 配置
-
-编辑 `src/main/resources/application.yml`：
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/ai_agent
-    username: root
-    password: your_password
-
-langchain4j:
-  open-ai:
-    api-key: your-openai-api-key
-    model-name: gpt-3.5-turbo
-```
-
-### 4. 运行
-
-```bash
-# 编译
-mvn clean compile
-
-# 运行
-mvn spring-boot:run
-```
-
-## API接口
-
-### 1. 同步聊天
-
-```http
-POST /chat
-Content-Type: application/json
-X-User-Id: user123
-
-{
-    "conversationId": null,
-    "message": "你好"
-}
-```
-
-响应：
-```json
-{
-    "code": 200,
-    "message": "success",
-    "data": {
-        "conversationId": 1,
-        "answer": "你好！我是企业AI助手..."
-    }
-}
-```
-
-### 2. 流式聊天（SSE）
-
-```http
-POST /chat/stream
-Content-Type: application/json
-X-User-Id: user123
-
-{
-    "conversationId": 1,
-    "message": "请介绍一下Spring Boot"
-}
-```
-
-SSE响应：
-```
-event: message
-data: {"type":"token","content":"Spring","conversationId":1}
-
-event: message
-data: {"type":"token","content":" Boot","conversationId":1}
-
-event: message
-data: {"type":"complete","content":"Spring Boot是...","conversationId":1}
-```
-
-### 3. 查询会话列表
-
-```http
-GET /conversations
-X-User-Id: user123
-```
-
-### 4. 查询会话详情
-
-```http
-GET /conversations/{id}
-X-User-Id: user123
-```
-
-### 5. 提交反馈
-
-```http
-POST /feedback
-Content-Type: application/json
-
-{
-    "messageId": 1,
-    "type": "like"
-}
-```
-
-## 核心特性
-
-1. **多轮对话**: 支持上下文记忆，自动关联历史消息
-2. **用户隔离**: 通过 X-User-Id 请求头实现数据隔离
-3. **流式响应**: 使用 SSE 实现 token 级实时输出
-4. **数据持久化**: 会话、消息、反馈全部持久化到 MySQL
-5. **企业级架构**: 分层清晰，易于扩展
-
-## 配置说明
-
-### 环境变量
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| OPENAI_API_KEY | OpenAI API密钥 | - |
-| OPENAI_MODEL_NAME | 模型名称 | gpt-3.5-turbo |
-| OPENAI_BASE_URL | 自定义API地址 | - |
+---
 
 ## 许可证
 
 MIT
-
-
-
-## 小记
-
-type	含义	关键字段
-
-reasoning	思维链片段	content
-tool_call	工具调用	toolName + toolArgs
-token	文本片段	content
-complete	生成完成	content
-error	出错	content
-
