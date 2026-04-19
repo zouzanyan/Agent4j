@@ -69,7 +69,6 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public SseEmitter chatStream(String userId, ChatRequest request) {
-        // 流式处理暂时使用同步方式（AiServices 流式需要额外配置）
         Long conversationId = request.getConversationId();
         String userMessage = request.getMessage();
 
@@ -77,59 +76,55 @@ public class ChatServiceImpl implements ChatService {
         validateConversationOwnership(userId, finalConversationId);
 
         SseEmitter emitter = new SseEmitter(300000L);
+        StringBuilder full = new StringBuilder();
 
         saveUserMessage(finalConversationId, userMessage);
+        loadHistoryToMemory(finalConversationId);
 
-        // 在后台线程中处理
-        new Thread(() -> {
-            try {
-                // 加载历史消息
-                loadHistoryToMemory(finalConversationId);
+        // 使用 AiAgent 返回的 TokenStream 设置流式回调
+        aiAgent.chatStream(userMessage)
+                .onPartialResponse(token -> {
+                    try {
+                        full.append(token);
+                        emitter.send(StreamChatResponse.builder()
+                                .type("token")
+                                .content(token)
+                                .conversationId(finalConversationId)
+                                .build());
+                    } catch (IOException e) {
+                        emitter.completeWithError(e);
+                    }
+                })
+                .onCompleteResponse(response -> {
+                    try {
+                        String answer = full.toString();
+                        saveAssistantMessage(finalConversationId, answer);
 
-                // 使用 AiAgent 进行对话
-                String answer = aiAgent.chat(userMessage);
-
-                // 模拟流式输出（逐字符发送）
-                for (int i = 0; i < answer.length(); i++) {
-                    String token = String.valueOf(answer.charAt(i));
-                    StreamChatResponse response = StreamChatResponse.builder()
-                            .type("token")
-                            .content(token)
-                            .conversationId(finalConversationId)
-                            .build();
-                    emitter.send(response);
-                    Thread.sleep(10); // 模拟打字效果
-                }
-
-                // 保存助手回复
-                saveAssistantMessage(finalConversationId, answer);
-
-                // 发送完成事件
-                StreamChatResponse completeResponse = StreamChatResponse.builder()
-                        .type("complete")
-                        .content(answer)
-                        .conversationId(finalConversationId)
-                        .build();
-                emitter.send(completeResponse);
-                emitter.complete();
-
-                log.info("Stream chat completed. conversationId={}", finalConversationId);
-
-            } catch (Exception e) {
-                log.error("Error in stream chat", e);
-                try {
-                    StreamChatResponse errorResponse = StreamChatResponse.builder()
-                            .type("error")
-                            .content(e.getMessage())
-                            .conversationId(finalConversationId)
-                            .build();
-                    emitter.send(errorResponse);
-                    emitter.complete();
-                } catch (IOException ioException) {
-                    emitter.completeWithError(ioException);
-                }
-            }
-        }).start();
+                        emitter.send(StreamChatResponse.builder()
+                                .type("complete")
+                                .content(answer)
+                                .conversationId(finalConversationId)
+                                .build());
+                        emitter.complete();
+                        log.info("Stream chat completed. conversationId={}", finalConversationId);
+                    } catch (IOException e) {
+                        emitter.completeWithError(e);
+                    }
+                })
+                .onError(error -> {
+                    try {
+                        log.error("Error in stream chat", error);
+                        emitter.send(StreamChatResponse.builder()
+                                .type("error")
+                                .content(error.getMessage())
+                                .conversationId(finalConversationId)
+                                .build());
+                        emitter.complete();
+                    } catch (IOException e) {
+                        emitter.completeWithError(e);
+                    }
+                })
+                .start();
 
         return emitter;
     }

@@ -8,6 +8,7 @@ import dev.langchain4j.http.client.jdk.JdkHttpClientBuilder;
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import dev.langchain4j.service.AiServices;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,7 +36,7 @@ public class AiAgentConfig {
     }
 
     /**
-     * 创建 OpenAI Chat Model
+     * 创建 OpenAI Chat Model（同步）
      */
     @Bean
     public OpenAiChatModel chatModel(
@@ -43,7 +44,6 @@ public class AiAgentConfig {
             @Value("${langchain4j.open-ai.model-name}") String modelName,
             @Value("${langchain4j.open-ai.base-url:}") String baseUrl) {
 
-        // 使用 HTTP/1.1 以确保兼容性
         HttpClientBuilder httpClientBuilder = new JdkHttpClientBuilder()
                 .httpClientBuilder(HttpClient.newBuilder()
                         .version(HttpClient.Version.HTTP_1_1)
@@ -63,20 +63,48 @@ public class AiAgentConfig {
     }
 
     /**
+     * 创建 OpenAI Streaming Chat Model（流式）
+     */
+    @Bean
+    public OpenAiStreamingChatModel streamingChatModel(
+            @Value("${langchain4j.open-ai.api-key}") String apiKey,
+            @Value("${langchain4j.open-ai.model-name}") String modelName,
+            @Value("${langchain4j.open-ai.base-url:}") String baseUrl) {
+
+        HttpClientBuilder httpClientBuilder = new JdkHttpClientBuilder()
+                .httpClientBuilder(HttpClient.newBuilder()
+                        .version(HttpClient.Version.HTTP_1_1)
+                        .connectTimeout(Duration.ofSeconds(60)));
+
+        OpenAiStreamingChatModel.OpenAiStreamingChatModelBuilder builder = OpenAiStreamingChatModel.builder()
+                .apiKey(apiKey)
+                .modelName(modelName)
+                .httpClientBuilder(httpClientBuilder);
+
+        if (baseUrl != null && !baseUrl.isEmpty()) {
+            builder.baseUrl(baseUrl);
+        }
+
+        log.info("OpenAiStreamingChatModel initialized with model: {}, baseUrl: {}", modelName, baseUrl);
+        return builder.build();
+    }
+
+    /**
      * 创建 AI Agent
      * 使用 AiServices.builder 自动处理工具调用
      */
     @Bean
-    public AiAgent aiAgent(OpenAiChatModel chatModel, 
-                          ChatMemory chatMemory, 
+    public AiAgent aiAgent(OpenAiChatModel chatModel,
+                          OpenAiStreamingChatModel streamingChatModel,
+                          ChatMemory chatMemory,
                           Tools tools,
                           McpService mcpService) {
-        
+
         log.info("Building AiAgent with AiServices...");
 
-        // 构建 AiServices
         AiServices<AiAgent> builder = AiServices.builder(AiAgent.class)
                 .chatModel(chatModel)
+                .streamingChatModel(streamingChatModel)
                 .chatMemory(chatMemory);
 
         // 注册本地工具（使用 @Tool 注解的方法）

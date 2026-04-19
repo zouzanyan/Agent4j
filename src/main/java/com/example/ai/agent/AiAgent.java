@@ -35,6 +35,6 @@ public interface AiAgent {
             """)
     String chatWithContext(@V("history") String conversationHistory, @UserMessage String message);
 
-    // 流式（核心）
-    void chat(@UserMessage String message, TokenStream tokenStream);
+    // 流式（核心）- 返回 TokenStream，由调用方设置回调
+    TokenStream chatStream(@UserMessage String message);
 }
