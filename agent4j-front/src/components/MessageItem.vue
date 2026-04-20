@@ -54,22 +54,22 @@ const renderedContent = computed(() => {
 <style scoped>
 .message-item {
   display: flex;
-  gap: 12px;
-  padding: 20px 0;
+  gap: 8px;
+  padding: 8px 0;
 }
 .message-item.user {
   flex-direction: row-reverse;
 }
 .message-avatar {
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 0;
 }
 .message-body {
-  max-width: 80%;
+  max-width: 75%;
   min-width: 60px;
 }
 .tool-calls {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -79,9 +79,9 @@ const renderedContent = computed(() => {
 .user-text {
   background: #95ec69;
   color: #000;
-  padding: 10px 16px;
-  border-radius: 16px;
-  line-height: 1.6;
+  padding: 8px 12px;
+  border-radius: 12px;
+  line-height: 1.5;
   word-break: break-word;
   white-space: pre-wrap;
   font-size: 14px;
@@ -90,30 +90,30 @@ const renderedContent = computed(() => {
 /* assistant bubble */
 .assistant-text {
   background: #fff;
-  padding: 12px 16px;
-  border-radius: 16px;
-  line-height: 1.7;
+  padding: 10px 12px;
+  border-radius: 12px;
+  line-height: 1.6;
   word-break: break-word;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   font-size: 14px;
 }
 
 /* markdown styles */
 .markdown-body :deep(p) {
-  margin: 4px 0;
+  margin: 2px 0;
 }
 .markdown-body :deep(h1),
 .markdown-body :deep(h2),
 .markdown-body :deep(h3) {
-  margin: 12px 0 4px;
+  margin: 10px 0 4px;
 }
 .markdown-body :deep(pre) {
   background: #1e1e2e;
   color: #cdd6f4;
-  padding: 12px;
+  padding: 10px;
   border-radius: 6px;
   overflow-x: auto;
-  margin: 8px 0;
+  margin: 6px 0;
   font-size: 13px;
 }
 .markdown-body :deep(code) {
@@ -125,7 +125,7 @@ const renderedContent = computed(() => {
 }
 .markdown-body :deep(ul) {
   padding-left: 20px;
-  margin: 4px 0;
+  margin: 2px 0;
 }
 .markdown-body :deep(li) {
   margin: 2px 0;

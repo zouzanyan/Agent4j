@@ -1,52 +1,61 @@
 package com.example.ai.agent;
 
+import com.example.ai.service.CoinGeckoService;
 import dev.langchain4j.agent.tool.Tool;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/**
- * AI Agent 工具类
- * 使用 @Tool 注解定义工具方法，LangChain4j 会自动处理工具调用
- */
 @Slf4j
 @Component
 public class Tools {
-//
-//    /**
-//     * 获取当前时间
-//     */
+
+    @Autowired
+    private CoinGeckoService coinGeckoService;
+
     @Tool("获取当前日期和时间")
     public String getCurrentTime() {
         String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         log.info("Tool called: getCurrentTime, result: {}", time);
         return time;
     }
-//
-//    /**
-//     * 计算数学表达式
-//     */
-//    @Tool("计算数学表达式的结果，支持加减乘除和括号")
-//    public double calculate(String expression) {
-//        log.info("Tool called: calculate, expression: {}", expression);
-//        // 这里可以实现更复杂的计算逻辑
-//        // 简化示例：只处理简单的加减乘除
-//        try {
-//            return evaluateExpression(expression);
-//        } catch (Exception e) {
-//            log.error("Failed to calculate expression: {}", expression, e);
-//            return Double.NaN;
-//        }
-//    }
-//
-//    /**
-//     * 简单的表达式计算（示例实现）
-//     */
-//    private double evaluateExpression(String expression) {
-//        // 简化实现，实际项目中可以使用更强大的表达式引擎
-//        // 如: exp4j, Javaluator, 或 ScriptEngine
-//        return 0.0;
-//    }
+
+    @Tool("获取加密货币实时行情数据。参数coinIds为币种ID列表，用逗号分隔，如bitcoin,ethereum；参数vsCurrency为计价货币，如usd或cny。返回包含价格、市值、24小时涨跌幅等信息的JSON数据。")
+    public String getCryptoPrices(String coinIds, String vsCurrency) {
+        log.info("Tool called: getCryptoPrices, coinIds: {}, vsCurrency: {}", coinIds, vsCurrency);
+        try {
+            String result = coinGeckoService.getCoinPrices(coinIds, vsCurrency);
+            return result;
+        } catch (Exception e) {
+            log.error("Failed to get crypto prices: {}", e.getMessage(), e);
+            return "获取行情数据失败: " + e.getMessage();
+        }
+    }
+
+    @Tool("获取热门加密货币行情数据。参数vsCurrency为计价货币，如usd或cny；参数limit为返回数量，如10表示前10个币种。返回按市值排序的行情JSON数据。")
+    public String getTopCryptoPrices(String vsCurrency, int limit) {
+        log.info("Tool called: getTopCryptoPrices, vsCurrency: {}, limit: {}", vsCurrency, limit);
+        try {
+            String result = coinGeckoService.getTopCoins(vsCurrency, limit);
+            return result;
+        } catch (Exception e) {
+            log.error("Failed to get top crypto prices: {}", e.getMessage(), e);
+            return "获取热门行情数据失败: " + e.getMessage();
+        }
+    }
+
+    @Tool("获取单个加密货币的简单价格信息。参数coinId为币种ID，如bitcoin；参数vsCurrency为计价货币，如usd。返回包含价格和24小时涨跌幅的JSON数据。")
+    public String getSimpleCryptoPrice(String coinId, String vsCurrency) {
+        log.info("Tool called: getSimpleCryptoPrice, coinId: {}, vsCurrency: {}", coinId, vsCurrency);
+        try {
+            String result = coinGeckoService.getCoinPrice(coinId, vsCurrency);
+            return result;
+        } catch (Exception e) {
+            log.error("Failed to get simple crypto price: {}", e.getMessage(), e);
+            return "获取价格数据失败: " + e.getMessage();
+        }
+    }
 }
